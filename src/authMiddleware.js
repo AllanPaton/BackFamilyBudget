@@ -1,3 +1,5 @@
+//Прослойка
+
 const express = require('express');
 const jwt = require('jsonwebtoken');
 
@@ -16,6 +18,9 @@ const authMiddleware = (req, res, next) => {
 		console.error(err);
 		res.status(401).json({ error: 'Unauthorized' });
 	}
+
+	res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000' , 'http://localhost:3001'); //  Разрешаем  домен
+	next();
 };
 
 module.exports = authMiddleware;

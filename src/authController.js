@@ -14,9 +14,14 @@ const pool = new Pool({
 
 const router = express.Router();
 
-
 router.post('/register', async (req, res) => {
 	const { login, password } = req.body;
+
+	console.log('Registration POST:', req.body) //Отслеживание запросов
+
+	if (!login || !password) {
+		return res.status(400).send('Login or password missing!');
+	}
 
 	try {
 		const hashedPassword = await bcrypt.hash(password, 10); //  10  -  количество раундов хэширования

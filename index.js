@@ -1,5 +1,6 @@
 const express = require('express');
 const { Pool } = require('pg');
+const cors = require('cors');
 const app = express();
 const port = 8081;
 
@@ -60,22 +61,28 @@ app.get('/', (req, res) => {
 	res.send('Server works successfully')
 })
 
+app.use(cors({
+	origin: ['http://localhost:3000', 'http://localhost:3001'], //  Допустимые  домены
+	methods: ['GET', 'POST', 'PUT', 'DELETE'], //  Допустимые  методы  HTTP
+	allowedHeaders: ['Content-Type', 'Authorization'], //  Допустимые  заголовки
+}));
 
 // Маршрутизация
 app.use('/api/auth', authController); // Обработка запросов /api/auth
-app.post('/users', async (req, res) => { // Обработка запросов POST /users
-	try {
-		const { login, password } = req.body;
-
-		const insertUserQuery = `INSERT INTO users (login, password) VALUES ($1, $2) RETURNING id;`;
-		const insertedUserId = await pool.query(insertUserQuery, [login, password]);
-
-		res.json({ message: 'User created successfully', userId: insertedUserId.rows[0].id });
-	} catch (err) {
-		console.error(err);
-		res.status(500).json({ error: 'Failed to create user' });
-	}
-});
+app.use(authMiddleware); //прослойка для всех защищенных маршрутов
+// app.post('/users', async (req, res) => { // Обработка запросов POST /users
+// 	try {
+// 		const { login, password } = req.body;
+//
+// 		const insertUserQuery = `INSERT INTO users (login, password) VALUES ($1, $2) RETURNING id;`;
+// 		const insertedUserId = await pool.query(insertUserQuery, [login, password]);
+//
+// 		res.json({ message: 'User created successfully', userId: insertedUserId.rows[0].id });
+// 	} catch (err) {
+// 		console.error(err);
+// 		res.status(500).json({ error: 'Failed to create user' });
+// 	}
+// });
 
 // Запуск сервера
 app.listen(port, () => {
@@ -88,3 +95,10 @@ app.listen(port, () => {
 		.catch(err => console.error('Error creating tables:', err));
 });
 
+//ДАННЫЕ хз
+
+app.use('/api/userdata', authMiddleware, async (req, res) => {
+	// (обработка запросов к  '/userdata'  для  аутентифицированного  пользователя)
+
+
+});
