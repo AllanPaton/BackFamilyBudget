@@ -1,4 +1,4 @@
-//Прослойка
+//Middleware для обеспечения взаимодействия между различными приложениями, системами, компонентами
 
 const express = require('express');
 const jwt = require('jsonwebtoken');
@@ -11,7 +11,7 @@ const authMiddleware = (req, res, next) => {
 	}
 
 	try {
-		const decodedToken = jwt.verify(token, 'your-secret-key');
+		const decodedToken = jwt.verify(token, 'your-secret-key'); // Изменить ключ при деплое
 		req.userId = decodedToken.userId;
 		next();
 	} catch (err) {
@@ -19,8 +19,6 @@ const authMiddleware = (req, res, next) => {
 		res.status(401).json({ error: 'Unauthorized' });
 	}
 
-	res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000' , 'http://localhost:3001'); //  Разрешаем  домен
-	next();
 };
 
 module.exports = authMiddleware;

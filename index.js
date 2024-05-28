@@ -41,11 +41,15 @@ async function createUserdataTable() {
 	try {
 		const query = `
             CREATE TABLE IF NOT EXISTS userdata (
-              id SERIAL PRIMARY KEY,
-              user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-              date DATE NOT NULL,
-              sum NUMERIC(100),
-              note VARCHAR(255) NOT NULL
+                   id SERIAL PRIMARY KEY,
+                   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                   date DATE NOT NULL,
+                   type VARCHAR(40),
+                   sum NUMERIC(100),
+                   note VARCHAR(255) NOT NULL,
+                   year INTEGER,
+                   month INTEGER,
+                   day INTEGER
             );
           `;
 
@@ -70,19 +74,6 @@ app.use(cors({
 // Маршрутизация
 app.use('/api/auth', authController); // Обработка запросов /api/auth
 app.use(authMiddleware); //прослойка для всех защищенных маршрутов
-// app.post('/users', async (req, res) => { // Обработка запросов POST /users
-// 	try {
-// 		const { login, password } = req.body;
-//
-// 		const insertUserQuery = `INSERT INTO users (login, password) VALUES ($1, $2) RETURNING id;`;
-// 		const insertedUserId = await pool.query(insertUserQuery, [login, password]);
-//
-// 		res.json({ message: 'User created successfully', userId: insertedUserId.rows[0].id });
-// 	} catch (err) {
-// 		console.error(err);
-// 		res.status(500).json({ error: 'Failed to create user' });
-// 	}
-// });
 
 // Запуск сервера
 app.listen(port, () => {
@@ -95,10 +86,55 @@ app.listen(port, () => {
 		.catch(err => console.error('Error creating tables:', err));
 });
 
-//ДАННЫЕ хз
+//ДАННЫЕ
 
-app.use('/api/userdata', authMiddleware, async (req, res) => {
-	// (обработка запросов к  '/userdata'  для  аутентифицированного  пользователя)
-
-
+app.delete('/api/protected', authMiddleware, async (req, res) => {
+	res.json({ message: 'Access to the protected resource is granted.',  userId:  req.userId  });
 });
+
+//ДАТА(за месяц) для хедера сайта
+app.get('/api/protected/userdata/header', cors(), authMiddleware, async (req, res) => {
+	const month = parseInt(req.query.month);
+
+	try {
+		const totalBalanceQuery = `SELECT SUM(sum) FROM userdata WHERE date_part('month', date) = $1`; //Общий счет
+		const totalBalanceResult = await pool.query(totalBalanceQuery, [month]);
+		const totalBalance = parseFloat(totalBalanceResult.rows[0].sum || 0).toFixed(2);
+
+		const outcomeQuery = `SELECT SUM(sum) FROM userdata WHERE date_part('month', date) = $1 AND sum < 0`; //Сумма исходящих переводов
+		const outcomeResult = await pool.query(outcomeQuery, [month]);
+		const outcome = parseFloat(outcomeResult.rows[0].sum || 0).toFixed(2);
+
+		const incomeQuery = `SELECT SUM(sum) FROM userdata WHERE date_part('month', date) = $1 AND sum > 0`; //Сумма входящих переводов
+		const incomeResult = await pool.query(incomeQuery, [month]);
+		const income = parseFloat(incomeResult.rows[0].sum || 0).toFixed(2);
+
+		console.log(`sending header{ total:${totalBalance}, outcome:${outcome}, income:${income}} to ${req.userId}`)
+		res.json({ totalBalance, outcome, income });
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ error: 'Internal server error' });
+	}
+});
+
+//ДАТА(входящие переводы за месяц) для графика
+app.get('/api/protected/userdata/areachart', cors(), authMiddleware, async (req, res) => {
+	const month = parseInt(req.query.month);
+
+	try {
+		const incomeQuery = `
+      SELECT date, sum, note 
+      FROM userdata 
+      WHERE date_part('month', date) = $1 AND sum > 0
+    `;
+		const incomeResult = await pool.query(incomeQuery, [month]);
+
+		console.log(`sending chartArea data to ${req.userId}`);
+		res.json(incomeResult.rows); // Отправляем массив объектов
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ error: 'Internal server error' });
+	}
+});
+
+
