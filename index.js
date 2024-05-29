@@ -92,6 +92,33 @@ app.delete('/api/protected', authMiddleware, async (req, res) => {
 	res.json({ message: 'Access to the protected resource is granted.',  userId:  req.userId  });
 });
 
+app.get('/api/protected/userdata/all', cors(), authMiddleware, async (req, res) => {
+	const month = parseInt(req.query.month);
+
+	if (isNaN(month) || month < 1 || month > 12) {
+		return res.status(400).json({ error: 'Invalid month parameter' });
+	}
+
+	try {
+		const userId = req.userId;
+		const query = `
+      SELECT * 
+      FROM userdata 
+      WHERE date_part('month', date) = $2
+      AND user_id = $1
+      AND sum <> 0
+      ORDER BY date DESC;
+    `;
+		const values = [userId, month];
+		const result = await pool.query(query, values);
+		res.json(result.rows);
+		console.log('sending ALL data to', userId);
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ error: 'Internal server error' });
+	}
+});
+
 //ДАТА(за месяц) для хедера сайта
 app.get('/api/protected/userdata/header', cors(), authMiddleware, async (req, res) => {
 	const month = parseInt(req.query.month);
@@ -137,4 +164,21 @@ app.get('/api/protected/userdata/areachart', cors(), authMiddleware, async (req,
 	}
 });
 
+app.get('/api/protected/userdata/piechart', cors(), authMiddleware, async (req, res) => {
+	const month = parseInt(req.query.month);
 
+	try {
+		const incomeQuery = `
+      SELECT date, sum, type 
+      FROM userdata 
+      WHERE date_part('month', date) = $1
+    `;
+		const incomeResult = await pool.query(incomeQuery, [month]);
+
+		console.log(`sending pieChart data to ${req.userId}`);
+		res.json(incomeResult.rows); // Отправляем массив объектов
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ error: 'Internal server error' });
+	}
+});
