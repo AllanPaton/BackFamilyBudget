@@ -34,6 +34,7 @@ async function createUsersTable() {
 	} catch (err) {
 		console.error(err);
 		console.error('users table creation failed');
+		process.exit(1);
 	}
 }
 
@@ -58,6 +59,7 @@ async function createUserdataTable() {
 	} catch (err) {
 		console.error(err);
 		console.error('userdata table creation failed');
+		process.exit(1);
 	}
 }
 
