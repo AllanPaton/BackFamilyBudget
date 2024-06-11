@@ -24,6 +24,12 @@ router.post('/register', async (req, res) => {
 	}
 
 	try {
+		const checkUserQuery = 'SELECT 1 FROM users WHERE login = $1';
+		const existingUser = await pool.query(checkUserQuery, [login]);
+
+		if (existingUser.rows.length > 0) {
+			return res.status(400).json({ error: 'Login already exists' });
+		}
 		const hashedPassword = await bcrypt.hash(password, 10); //  10  -  количество раундов хэширования
 
 		const insertUserQuery = `INSERT INTO users (login, password) VALUES ($1, $2) RETURNING id;`;

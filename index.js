@@ -124,21 +124,42 @@ app.get('/api/protected/userdata/all', cors(), authMiddleware, async (req, res) 
 //ДАТА(за месяц) для хедера сайта
 app.get('/api/protected/userdata/header', cors(), authMiddleware, async (req, res) => {
 	const month = parseInt(req.query.month);
+	const userId = req.userId;
 
 	try {
-		const totalBalanceQuery = `SELECT SUM(sum) FROM userdata WHERE date_part('month', date) = $1`; //Общий счет
-		const totalBalanceResult = await pool.query(totalBalanceQuery, [month]);
+		// Общий счет
+		const totalBalanceQuery = `
+      SELECT SUM(sum) 
+      FROM userdata 
+      WHERE date_part('month', date) = $1
+      AND user_id = $2;
+    `;
+		const totalBalanceResult = await pool.query(totalBalanceQuery, [month, userId]);
 		const totalBalance = parseFloat(totalBalanceResult.rows[0].sum || 0).toFixed(2);
 
-		const outcomeQuery = `SELECT SUM(sum) FROM userdata WHERE date_part('month', date) = $1 AND sum < 0`; //Сумма исходящих переводов
-		const outcomeResult = await pool.query(outcomeQuery, [month]);
+		// Сумма исходящих переводов
+		const outcomeQuery = `
+      SELECT SUM(sum) 
+      FROM userdata 
+      WHERE date_part('month', date) = $1 
+      AND sum < 0
+      AND user_id = $2;
+    `;
+		const outcomeResult = await pool.query(outcomeQuery, [month, userId]);
 		const outcome = parseFloat(outcomeResult.rows[0].sum || 0).toFixed(2);
 
-		const incomeQuery = `SELECT SUM(sum) FROM userdata WHERE date_part('month', date) = $1 AND sum > 0`; //Сумма входящих переводов
-		const incomeResult = await pool.query(incomeQuery, [month]);
+		// Сумма входящих переводов
+		const incomeQuery = `
+      SELECT SUM(sum) 
+      FROM userdata 
+      WHERE date_part('month', date) = $1 
+      AND sum > 0
+      AND user_id = $2;
+    `;
+		const incomeResult = await pool.query(incomeQuery, [month, userId]);
 		const income = parseFloat(incomeResult.rows[0].sum || 0).toFixed(2);
 
-		console.log(`sending header{ total:${totalBalance}, outcome:${outcome}, income:${income}} to ${req.userId}`)
+		console.log(`sending header{ total:${totalBalance}, outcome:${outcome}, income:${income}} to ${userId}`);
 		res.json({ totalBalance, outcome, income });
 	} catch (err) {
 		console.error(err);
@@ -149,17 +170,19 @@ app.get('/api/protected/userdata/header', cors(), authMiddleware, async (req, re
 //ДАТА(входящие переводы за месяц) для графика
 app.get('/api/protected/userdata/areachart', cors(), authMiddleware, async (req, res) => {
 	const month = parseInt(req.query.month);
+	const userId = req.userId;
 
 	try {
 		const incomeQuery = `
       SELECT date, sum, note 
       FROM userdata 
       WHERE date_part('month', date) = $1 AND sum > 0
+      AND user_id = $2;
     `;
-		const incomeResult = await pool.query(incomeQuery, [month]);
+		const incomeResult = await pool.query(incomeQuery, [month, userId]);
 
 		console.log(`sending chartArea data to ${req.userId}`);
-		res.json(incomeResult.rows); // Отправляем массив объектов
+		res.json(incomeResult.rows);
 	} catch (err) {
 		console.error(err);
 		res.status(500).json({ error: 'Internal server error' });
@@ -168,19 +191,48 @@ app.get('/api/protected/userdata/areachart', cors(), authMiddleware, async (req,
 
 app.get('/api/protected/userdata/piechart', cors(), authMiddleware, async (req, res) => {
 	const month = parseInt(req.query.month);
+	const userId = req.userId;
 
 	try {
 		const incomeQuery = `
       SELECT date, sum, type 
       FROM userdata 
       WHERE date_part('month', date) = $1
+      AND user_id = $2;
     `;
-		const incomeResult = await pool.query(incomeQuery, [month]);
+		const incomeResult = await pool.query(incomeQuery, [month, userId]);
 
 		console.log(`sending pieChart data to ${req.userId}`);
 		res.json(incomeResult.rows); // Отправляем массив объектов
 	} catch (err) {
 		console.error(err);
+		res.status(500).json({ error: 'Internal server error' });
+	}
+});
+
+
+app.post('/api/protected/userdata/add', authMiddleware, async (req, res) => {
+	console.log('Raw request body:', req.body); // Логируем сырой запрос
+
+	const { sum, type, note, date } = req.body;
+
+	console.log('Parsed data:', { sum, type, note, date }); // Логируем разобранные данные
+
+	try {
+		if (!sum || !type || !note || !date) {
+			return res.status(400).json({ error: 'Missing required data' });
+		}
+
+		const userId = req.userId;
+		const result = await pool.query(
+			'INSERT INTO userdata (user_id, sum, type, note, date) VALUES ($1, $2, $3, $4, $5)',
+			[userId, sum, type, note, date]
+		);
+
+		console.log(`${userId} added content successfully`);
+		res.status(201).json({ message: 'Transaction created successfully' });
+	} catch (err) {
+		console.error('Error creating transaction:', err);
 		res.status(500).json({ error: 'Internal server error' });
 	}
 });
