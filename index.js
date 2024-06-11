@@ -45,9 +45,9 @@ async function createUserdataTable() {
                    id SERIAL PRIMARY KEY,
                    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                    date DATE NOT NULL,
-                   type VARCHAR(40),
+                   type VARCHAR(40) NOT NULL,
                    sum NUMERIC(100),
-                   note VARCHAR(255) NOT NULL,
+                   note VARCHAR(255),
                    year INTEGER,
                    month INTEGER,
                    day INTEGER
@@ -235,4 +235,51 @@ app.post('/api/protected/userdata/add', authMiddleware, async (req, res) => {
 		console.error('Error creating transaction:', err);
 		res.status(500).json({ error: 'Internal server error' });
 	}
+});
+
+
+//Запрос на редактирование бд
+app.put('/api/protected/userdata/update/:id', authMiddleware, async (req, res) => {
+	const transactionId = parseInt(req.params.id);
+	const { sum, type, note, date } = req.body;
+
+	const safeNote = note || '';
+	try {
+		if (transactionId === -1) {
+			// --- Create a NEW transaction ---
+			const userId = req.userId;
+			const createQuery = 'INSERT INTO userdata (user_id, sum, type, note, date) VALUES ($1, $2, $3, $4, $5) RETURNING *';
+			const createValues = [userId, sum, type, note, date];
+
+			const createResult = await pool.query(createQuery, createValues);
+			const newTransaction = createResult.rows[0];
+
+			console.log(`${userId} created transaction ${newTransaction.id}`);
+			res.status(201).json(newTransaction);
+
+		} else if (!isNaN(transactionId) && transactionId > 0) {
+		// --- Update an EXISTING transaction ---
+		const userId = req.userId;
+
+		const updateQuery = 'UPDATE userdata SET sum = $1, type = $2, note = $3, date = $4 WHERE id = $5 AND user_id = $6';
+		const updateValues = [sum, type, note, date, transactionId, userId];
+
+		const updateResult = await pool.query(updateQuery, updateValues);
+
+		if (updateResult.rowCount === 0) {
+			return res.status(404).json({
+				error: 'Transaction not found or you are not authorized to update it',
+			});
+		}
+
+		console.log(`${userId} updated transaction ${transactionId}`);
+		res.json({ message: 'Transaction updated successfully' });
+	} else {
+		// --- Invalid ID ---
+		return res.status(400).json({ error: 'Invalid transaction ID' });
+	}
+	} catch (err) {
+		console.error('Error updating/creating transaction:', err);
+		res.status(500).json({ error: 'Internal server error' });
+}
 });
